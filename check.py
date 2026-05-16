@@ -13,11 +13,12 @@ status = room.get("status", 0)
 user_count = room.get("user_count", 0)
 title = room.get("title", "").replace('"', "").replace("\n", "")
 
-is_live = status == 2 and user_count > 0
+# Live = status 2 AND users > 0
+is_live = bool(status == 2 and user_count > 0)
 now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 result = {"isLive": is_live, "title": title, "viewerCount": user_count, "updatedAt": now}
 with open("status.json", "w") as f:
     json.dump(result, f)
 
-print(f"Live: {is_live} | Viewers: {user_count} | Title: {title}")
+print(f"Live: {is_live} | Status: {status} | Viewers: {user_count} | Title: {title}")
