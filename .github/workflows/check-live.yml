@@ -12,39 +12,40 @@ jobs:
       contents: write
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Check TikTok live status
-        id: check
+      - name: Fetch and write status
         run: |
-          RESPONSE=$(curl -s \
-            -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)" \
-            "https://webcast.tiktok.com/webcast/room/info/?room_id=7640508446380378901&aid=1988")
-          
-          STATUS=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('status',0))")
-          USER_COUNT=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('user_count',0))")
-          TITLE=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('title','').replace('\"','').replace('
-',''))")
-          
-          # Live = status 2 AND user_count > 0 (start_time can be 0)
-          if [ "$STATUS" = "2" ] && [ "$USER_COUNT" -gt 0 ]; then
-            IS_LIVE="true"
-          else
-            IS_LIVE="false"
-          fi
-          
-          NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          
-          echo "{\"isLive\":$IS_LIVE,\"title\":\"$TITLE\",\"viewerCount\":$USER_COUNT,\"updatedAt\":\"$NOW\"}" > status.json
-          
-          echo "is_live=$IS_LIVE" >> $GITHUB_OUTPUT
-          echo "viewer_count=$USER_COUNT" >> $GITHUB_OUTPUT
+          python3 - << 'EOF'
+import urllib.request, json, subprocess
+from datetime import datetime, timezone
 
-      - name: Commit status
+req = urllib.request.Request(
+    "https://webcast.tiktok.com/webcast/room/info/?room_id=7640508446380378901&aid=1988",
+    headers={"User-Agent": "Mozilla/5.0"}
+)
+with urllib.request.urlopen(req, timeout=10) as r:
+    data = json.loads(r.read())
+
+room = data.get("data", {})
+status = room.get("status", 0)
+user_count = room.get("user_count", 0)
+title = room.get("title", "").replace('"', "")
+
+is_live = status == 2 and user_count > 0
+now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+result = {"isLive": is_live, "title": title, "viewerCount": user_count, "updatedAt": now}
+with open("status.json", "w") as f:
+    json.dump(result, f)
+
+print(f"Live: {is_live}, Viewers: {user_count}, Title: {title}")
+EOF
+
+      - name: Commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add status.json
-          git diff --staged --quiet || git commit -m "Live: ${{ steps.check.outputs.is_live }} | Viewers: ${{ steps.check.outputs.viewer_count }}"
+          git diff --staged --quiet || git commit -m "status update"
           git push
