@@ -2,8 +2,8 @@ name: Check TikTok Live Status
 
 on:
   schedule:
-    - cron: '*/5 * * * *'  # Every 5 minutes
-  workflow_dispatch:        # Manual trigger
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
 
 jobs:
   check-live:
@@ -24,11 +24,11 @@ jobs:
           
           STATUS=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('status',0))")
           USER_COUNT=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('user_count',0))")
-          TITLE=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('title',''))")
-          START_TIME=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('start_time',0))")
+          TITLE=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('title','').replace('\"','').replace('
+',''))")
           
-          # Live = status 2 AND user_count > 0 AND start_time > 0
-          if [ "$STATUS" = "2" ] && [ "$USER_COUNT" -gt 0 ] && [ "$START_TIME" -gt 0 ]; then
+          # Live = status 2 AND user_count > 0 (start_time can be 0)
+          if [ "$STATUS" = "2" ] && [ "$USER_COUNT" -gt 0 ]; then
             IS_LIVE="true"
           else
             IS_LIVE="false"
@@ -36,9 +36,7 @@ jobs:
           
           NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           
-          cat > status.json << EOF
-          {"isLive":$IS_LIVE,"title":"$TITLE","viewerCount":$USER_COUNT,"updatedAt":"$NOW"}
-          EOF
+          echo "{\"isLive\":$IS_LIVE,\"title\":\"$TITLE\",\"viewerCount\":$USER_COUNT,\"updatedAt\":\"$NOW\"}" > status.json
           
           echo "is_live=$IS_LIVE" >> $GITHUB_OUTPUT
           echo "viewer_count=$USER_COUNT" >> $GITHUB_OUTPUT
