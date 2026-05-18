@@ -13,12 +13,10 @@ with urllib.request.urlopen(req, timeout=10) as r:
 room = data.get("data", {})
 status = room.get("status", 0)
 user_count = room.get("user_count", 0)
-finish_time = room.get("finish_time", 0)
-replay = room.get("replay", False)
 title = room.get("title", "").replace('"', "").replace("\\n", "")
 
-is_live = (status == 2 and finish_time == 0 and not replay) or \
-          (status == 4 and finish_time == 0 and not replay and user_count > 0)
+# status=2 is de enige betrouwbare live indicator
+is_live = status == 2
 
 now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 result = {"isLive": is_live, "title": title, "viewerCount": user_count, "updatedAt": now}
@@ -26,4 +24,4 @@ result = {"isLive": is_live, "title": title, "viewerCount": user_count, "updated
 with open("status.json", "w") as f:
     json.dump(result, f)
 
-print(f"Live: {is_live} | Status: {status} | Replay: {replay} | Finish: {finish_time} | Viewers: {user_count}")
+print(f"Live: {is_live} | Status: {status} | Viewers: {user_count}")
