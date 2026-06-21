@@ -1,0 +1,51 @@
+name: Ververs bunq token
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # elke maandag om 06:00
+  workflow_dispatch:
+
+jobs:
+  ververs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Python installeren
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Pakketten installeren
+        run: pip install bunq-sdk requests
+
+      - name: Token vernieuwen
+        env:
+          BUNQ_API_KEY: ${{ secrets.BUNQ_API_KEY }}
+          HERENOW_API_KEY: ${{ secrets.HERENOW_API_KEY }}
+        run: |
+          python3 - << 'PYEOF'
+          import os, requests
+          from bunq.sdk.context.api_context import ApiContext
+          from bunq.sdk.context.api_environment_type import ApiEnvironmentType
+          from bunq.sdk.context.bunq_context import BunqContext
+
+          ctx = ApiContext.create(
+              ApiEnvironmentType.PRODUCTION,
+              os.environ["BUNQ_API_KEY"],
+              "github-actions-token-refresh",
+          )
+          BunqContext.load_api_context(ctx)
+          token = BunqContext.api_context().token
+
+          r = requests.put(
+              "https://here.now/api/v1/me/variables/BUNQ_SESSION_TOKEN",
+              headers={
+                  "Authorization": f"Bearer {os.environ['HERENOW_API_KEY']}",
+                  "Content-Type": "application/json"
+              },
+              json={"value": token, "allowedUpstreams": ["api.bunq.com"]}
+          )
+          print(f"Status: {r.status_code}")
+          if r.status_code != 200:
+              raise Exception(f"Mislukt: {r.text}")
+          print("Token succesvol ververst.")
+          PYEOF
