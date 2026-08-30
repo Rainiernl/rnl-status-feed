@@ -1,0 +1,32 @@
+name: Houd Supabase wakker
+
+# Supabase pauzeert gratis projecten na zeven dagen zonder verkeer.
+# Deze ping tikt twee keer per week even aan, zodat Planprikker en de
+# contactformulieren niet stilvallen.
+
+on:
+  schedule:
+    - cron: '0 7 * * 1,4'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Supabase aantikken
+        env:
+          SUPABASE_URL: https://prubetjmnewibgxodjrk.supabase.co
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          CODE=$(curl -s -o /tmp/out.json -w "%{http_code}" \
+            -X POST "$SUPABASE_URL/rest/v1/rpc/pp_get_poll" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{"p_id":"wakker-houden"}')
+          echo "Supabase antwoordde met $CODE"
+          cat /tmp/out.json
+          if [ "$CODE" != "200" ]; then
+            echo "::error::Supabase reageerde niet zoals verwacht ($CODE)"
+            exit 1
+          fi
