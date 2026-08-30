@@ -1,10 +1,16 @@
-import urllib.request, json, re, os
+import urllib.request, json, re
 from datetime import datetime, timezone
 
-# Schrijft status.json alleen opnieuw als er inhoudelijk iets veranderd is.
-# Anders levert elke run een commit op, ook als de status al dagen hetzelfde is.
-# updatedAt is daarmee het moment van de laatste verandering, niet van de laatste check.
-# Hoe vers de check zelf is, blijkt uit de runs van de workflow.
+# status.json wordt alleen herschreven als er iets verandert dat de perspagina toont.
+# Zonder die rem levert elke run een commit op, ook als er dagen niets gebeurt.
+#
+# De pagina leest isLive altijd, en title plus viewerCount alleen tijdens een stream.
+# Daarom telt een kijkersaantal alleen mee als de zender live is en het verschil
+# groot genoeg is om op te vallen. Anders zou elke voorbijganger een commit opleveren.
+
+DREMPEL_ABSOLUUT = 5      # minder dan vijf kijkers verschil is ruis
+DREMPEL_RELATIEF = 0.15   # of vijftien procent, wat bij grote aantallen eerder telt
+
 
 def lees_huidig():
     try:
@@ -13,15 +19,24 @@ def lees_huidig():
     except Exception:
         return None
 
+
+def noemenswaardig(oud, nieuw):
+    verschil = abs(nieuw - oud)
+    return verschil >= max(DREMPEL_ABSOLUUT, oud * DREMPEL_RELATIEF)
+
+
 def schrijf(is_live, title, viewers):
     huidig = lees_huidig()
-    if huidig and (
-        huidig.get("isLive") == is_live
-        and huidig.get("title", "") == title
-        and huidig.get("viewerCount", 0) == viewers
-    ):
-        print(f"Ongewijzigd (live={is_live}, viewers={viewers}), niets weggeschreven")
-        return
+    if huidig is not None:
+        zelfde_status = huidig.get("isLive") == is_live
+        zelfde_titel = huidig.get("title", "") == title
+        oud_aantal = huidig.get("viewerCount", 0)
+        # Offline doet het aantal er niet toe, de pagina laat het dan niet zien.
+        aantal_telt = is_live and noemenswaardig(oud_aantal, viewers)
+        if zelfde_status and zelfde_titel and not aantal_telt:
+            print(f"Ongewijzigd (live={is_live}, viewers={viewers}), niets weggeschreven")
+            return
+
     resultaat = {
         "isLive": is_live,
         "title": title,
@@ -31,6 +46,7 @@ def schrijf(is_live, title, viewers):
     with open("status.json", "w") as f:
         json.dump(resultaat, f)
     print(f"Gewijzigd, weggeschreven: live={is_live}, viewers={viewers}")
+
 
 # Stap 1: room_id dynamisch ophalen via de profielpagina
 try:
