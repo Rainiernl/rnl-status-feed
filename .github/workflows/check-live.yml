@@ -1,8 +1,10 @@
 name: Check TikTok Live Status
 
+# De planning is verhuisd naar Supabase (pg_cron roept elke minuut de edge
+# function tiktok-live aan, die status.json bijwerkt). GitHub voerde de
+# planning hier uren te laat uit. Deze workflow blijft als handmatige
+# reserve: Actions, Run workflow.
 on:
-  schedule:
-    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 jobs:
